@@ -1,0 +1,18 @@
+{
+  "name": "palermo-italian-reader",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"test/**/*.test.ts\"",
+    "dev": "wrangler dev --config wrangler.local.jsonc",
+    "deploy": "wrangler deploy --config wrangler.local.jsonc",
+    "eval:proxy": "wrangler dev --config evals/ai-proxy/wrangler.jsonc --port 8799",
+    "eval:cefr": "node evals/run-cefr.ts",
+    "eval:scoring": "node evals/run-scoring.ts",
+    "db:migrate:local": "wrangler d1 migrations apply palermo-reader --local --config wrangler.local.jsonc",
+    "db:migrate:remote": "wrangler d1 migrations apply palermo-reader --remote --config wrangler.local.jsonc"
+  },
+  "devDependencies": {
+    "wrangler": "^4.147.0"
+  }
+}

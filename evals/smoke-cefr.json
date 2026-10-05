@@ -1,0 +1,9 @@
+[
+  { "id": "a1-name", "label": "A1", "italian": "Io mi chiamo Marco e ho dieci anni. Ho un cane." },
+  { "id": "a1-cat", "label": "A1", "italian": "Il gatto è sul tavolo. La mela è rossa." },
+  { "id": "a2-market", "label": "A2", "italian": "Ieri sono andato al mercato per comprare la frutta e il pane, poi sono tornato a casa." },
+  { "id": "b1-sea", "label": "B1", "italian": "Se domani non piove, andremo al mare con i nostri amici, anche se l'acqua è ancora piuttosto fredda." },
+  { "id": "b2-match", "label": "B2", "italian": "Nonostante le previsioni fossero sfavorevoli, la squadra è riuscita a ribaltare il risultato grazie a una prestazione di grande carattere." },
+  { "id": "c1-reform", "label": "C1", "italian": "L'iniziativa, benché lodevole nelle intenzioni, rischia di rivelarsi controproducente laddove non sia accompagnata da un'adeguata ridefinizione delle competenze." },
+  { "id": "c2-literary", "label": "C2", "italian": "Quella sua ostinata renitenza ad assecondare le consuetudini, lungi dall'essere mero capriccio, tradiva un'inquietudine ben più radicata e quasi metafisica." }
+]

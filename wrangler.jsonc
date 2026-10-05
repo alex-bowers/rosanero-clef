@@ -1,0 +1,39 @@
+{
+  "name": "rosanero",
+  "main": "src/index.ts",
+  // This file holds placeholders. Copy it to wrangler.local.jsonc (git-ignored), put your real
+  // hostname and D1 database ID there, and the pnpm scripts will use that copy.
+  // The only public address is this subdomain, which sits behind a Cloudflare Access application.
+  // workers.dev and preview addresses stay off so nothing can reach the Worker around Access.
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "app.example.com", "custom_domain": true }],
+  // Not yet checked against the current wrangler release; confirm once wrangler is installed.
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "ai": { "binding": "AI" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "palermo-reader",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "triggers": { "crons": ["0 5 * * *"] },
+  "observability": { "enabled": true },
+  "vars": {
+    "DECISION_MODEL": "@cf/cloudflare/clef-flash",
+    "SCORING_MODEL": "@cf/cloudflare/clef",
+    "LLM_MODEL": "@cf/mistralai/mistral-small-3.1-24b-instruct",
+    "CONFIDENCE_THRESHOLD": "0.45",
+    "ATTEMPTS_PER_MINUTE": "10",
+    "EXPLAINS_PER_MINUTE": "5",
+    "DAILY_ATTEMPT_CAP": "200",
+    "DAILY_EXPLAIN_CAP": "50"
+  }
+}

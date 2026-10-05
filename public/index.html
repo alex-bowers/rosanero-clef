@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#1a1a1e" />
+    <meta name="robots" content="noindex" />
+    <title>Palermo Italian Reader</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231a1a1e'/%3E%3Ccircle cx='16' cy='16' r='8' fill='%23f48fb1'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" type="module" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to the exercise</a>
+
+    <header class="site-header">
+      <h1>Palermo Italian Reader</h1>
+      <nav aria-label="Main">
+        <a href="#practice">Practice</a>
+        <a href="#history">History</a>
+        <a href="#settings">Settings</a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <p id="status" class="status" role="status"></p>
+
+      <div id="problem" class="problem" role="alert" hidden>
+        <p id="problem-text"></p>
+        <button id="retry" type="button" class="button secondary">Try again</button>
+      </div>
+
+      <section id="practice" aria-labelledby="practice-heading" hidden>
+        <h2 id="practice-heading" tabindex="-1">Translate this sentence</h2>
+
+        <p id="italian" class="italian" lang="it"></p>
+
+        <p class="source">
+          From
+          <a id="source-link" rel="noopener noreferrer" target="_blank"></a>
+          <span class="visually-hidden">(opens in a new tab)</span>
+        </p>
+
+        <details class="difficulty">
+          <summary id="difficulty-summary"></summary>
+          <ul id="difficulty-bars" class="bars"></ul>
+          <p class="hint">
+            An AI model rates difficulty and tends to read low. Treat it as a guide.
+          </p>
+        </details>
+
+        <form id="attempt-form" novalidate>
+          <label for="attempt">Your English translation</label>
+          <p id="attempt-hint" class="hint">In your own words. Up to 1,000 characters.</p>
+          <p id="attempt-error" class="field-error" hidden></p>
+          <textarea
+            id="attempt"
+            name="attempt"
+            lang="en"
+            rows="4"
+            maxlength="1000"
+            required
+            autocapitalize="sentences"
+            aria-describedby="attempt-hint attempt-error"
+          ></textarea>
+          <div class="actions">
+            <button id="submit" type="submit" class="button primary">Check my translation</button>
+            <button id="skip" type="button" class="button secondary">Skip this one</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="result" aria-labelledby="result-heading" hidden>
+        <h2 id="result-heading" tabindex="-1"></h2>
+        <p id="confidence"></p>
+
+        <h3>English fluency</h3>
+        <p id="fluency-text"></p>
+        <div class="bar" aria-hidden="true"><span id="fluency-fill"></span></div>
+
+        <h3>How sure the scorer is about each verdict</h3>
+        <ul id="verdict-bars" class="bars"></ul>
+
+        <h3>Your translation</h3>
+        <p id="your-attempt" class="english" lang="en"></p>
+
+        <h3>One acceptable translation</h3>
+        <p id="reference" class="english" lang="en"></p>
+        <p class="hint">The reference is one good answer, not the only one. It can contain mistakes too.</p>
+
+        <div id="explain" hidden>
+          <p class="note">This one may be worth a closer look.</p>
+          <button id="explain-button" type="button" class="button secondary">Explain this</button>
+          <p id="explain-error" class="field-error" role="alert" hidden></p>
+        </div>
+
+        <section id="explanation" aria-labelledby="explanation-heading" hidden>
+          <h3 id="explanation-heading" tabindex="-1">Explanation</h3>
+          <p id="explanation-text" class="explanation" lang="en"></p>
+          <p class="hint">Written by an AI model, which can make mistakes.</p>
+        </section>
+
+        <button id="next" type="button" class="button primary">Next sentence</button>
+      </section>
+
+      <section id="history" aria-labelledby="history-heading" hidden>
+        <h2 id="history-heading" tabindex="-1">History</h2>
+        <p id="history-empty" hidden>
+          No attempts yet. Translate a sentence on the Practice page and it will appear here.
+        </p>
+        <div id="history-list"></div>
+      </section>
+
+      <section id="settings" aria-labelledby="settings-heading" hidden>
+        <h2 id="settings-heading" tabindex="-1">Settings</h2>
+        <form id="settings-form" novalidate>
+          <div class="field">
+            <label for="target-level">Target level</label>
+            <select id="target-level" name="targetLevel">
+              <option>A1</option>
+              <option>A2</option>
+              <option>B1</option>
+              <option>B2</option>
+              <option>C1</option>
+              <option>C2</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="level-range">Sentences to show</label>
+            <select id="level-range" name="levelRange">
+              <option value="0">Only the target level</option>
+              <option value="1">Within one level</option>
+              <option value="2">Within two levels</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="daily-cap">New sentences per day</label>
+            <p id="daily-cap-hint" class="hint">
+              Each one costs a little to rate and translate. Choose 0 to 40.
+            </p>
+            <input
+              id="daily-cap"
+              name="dailyChunkCap"
+              type="number"
+              inputmode="numeric"
+              min="0"
+              max="40"
+              step="1"
+              required
+              aria-describedby="daily-cap-hint settings-error"
+            />
+          </div>
+
+          <p id="settings-error" class="field-error" role="alert" hidden></p>
+          <button type="submit" class="button primary">Save settings</button>
+          <p id="settings-status" class="status" role="status"></p>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

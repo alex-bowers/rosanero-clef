@@ -8,7 +8,7 @@ A Clef decision model rates each chunk's difficulty (CEFR, A1 to C2) and scores 
 
 Milestones 1 to 6 are done: practice, result, explanations, history and settings all work in the browser. Milestone 7 (hardening) is mostly done: rate limits, daily caps, call logging and error handling are built, and the app has been deployed behind Cloudflare Access. See [DEPLOY.md](DEPLOY.md) for the deployment checklist.
 
-A daily scheduled run discovers articles on forzapalermo.it, splits them into chunks, rates each chunk's difficulty with Clef-flash, and stores a reference English translation from Mistral Small 3.1 (all via Workers AI). The daily sentence cap is soft: it is checked between articles, and an article is always stored whole. If the site's RSS feed fails, discovery falls back to its listing pages.
+A daily scheduled run discovers articles on forzapalermo.it, splits them into chunks, rates each chunk's difficulty with Clef-flash, and stores a reference English translation from Mistral Small 3.1 (all via Workers AI). Setting the daily sentence cap to 0 pauses ingest, rating and translation. Otherwise the cap is soft: it is checked between articles, and an article is always stored whole. If the site's RSS feed fails, discovery falls back to its listing pages.
 
 To try it locally: run `pnpm db:migrate:local`, start `pnpm exec wrangler dev --test-scheduled --config wrangler.local.jsonc`, visit `/__scheduled?cron=0+5+*+*+*` once to ingest, rate and translate the day's sentences (about a minute), then open the dev URL. The dev server makes real Workers AI calls.
 
@@ -80,7 +80,7 @@ The report gives accuracy, accuracy within one level, a confusion matrix, and wh
 
 ## Scoring calibration
 
-The same proxy setup checks how well Clef scores translation attempts. `evals/scoring-calibration.json` (not committed, because it holds article text) holds (Italian, reference, attempt) examples. Its `label` values (`fully_correct`, `minor_issue`, `partly_correct`, `wrong`) are a **draft** written by the author. Review and correct them, then run `pnpm eval:scoring` with `pnpm eval:proxy` running. Set `MODEL=@cf/cloudflare/clef-flash` to compare the smaller model.
+The same proxy setup checks how well Clef scores translation attempts. `evals/scoring-calibration.json` (not committed, because it holds article text) holds (Italian, reference, attempt) examples. Its `label` values (`fully_correct`, `minor_issue`, `partly_correct`, `wrong`) are a **draft** written by the author. Review and correct them, then run `pnpm eval:scoring` with `pnpm eval:proxy` running. It uses `@cf/cloudflare/clef`, as production does. Set `MODEL=@cf/cloudflare/clef-flash` to compare the smaller model.
 
 The report adds two checks: how often an attempt is judged acceptable versus not, and how often the verdict changes when the attempt is typed in lower case with no punctuation, as on a phone.
 

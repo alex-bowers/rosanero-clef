@@ -64,6 +64,8 @@ const els = {
 
 let currentChunk = null;
 let lastAttemptId = null;
+/** Changes whenever the sentence on screen changes, so a late reply for an old one can be ignored. */
+let practiceToken = 0;
 /** What the practice view is showing: a sentence to translate, a result, or nothing yet. */
 let practiceState = "none";
 let retryAction = () => loadNext();
@@ -191,12 +193,14 @@ async function route({ moveFocus = false } = {}) {
 // ---- Practice ----
 
 async function loadNext({ moveFocus = false } = {}) {
+  const token = ++practiceToken;
   clearProblem();
   practiceState = "none";
   applyVisibility();
   setStatus("Finding a sentence…");
   try {
     const chunk = await api("/api/chunks/next");
+    if (token !== practiceToken) return;
     currentChunk = chunk;
     renderChunk(chunk);
     setStatus("");
@@ -204,6 +208,7 @@ async function loadNext({ moveFocus = false } = {}) {
     applyVisibility();
     if (moveFocus && currentView() === "practice") els.practiceHeading.focus();
   } catch (error) {
+    if (token !== practiceToken) return;
     setStatus("");
     showProblem(
       error.status === 404
@@ -259,22 +264,27 @@ async function submitAttempt(event) {
   clearFieldError();
   clearProblem();
 
+  const token = practiceToken;
   els.submit.disabled = true;
+  els.skip.disabled = true;
   els.submit.setAttribute("aria-busy", "true");
   setStatus("Checking your translation…");
   try {
     const result = await api("/api/attempt", jsonRequest("POST", { chunkId: currentChunk.id, attempt }));
+    if (token !== practiceToken) return;
     renderResult(result, attempt);
     setStatus("");
     practiceState = "result";
     applyVisibility();
     if (currentView() === "practice") els.resultHeading.focus();
   } catch (error) {
+    if (token !== practiceToken) return;
     setStatus("");
     els.submit.disabled = false;
     if (error.status === 400) showFieldError(error.message);
     else showProblem(error.message, () => els.form.requestSubmit());
   } finally {
+    els.skip.disabled = false;
     els.submit.removeAttribute("aria-busy");
   }
 }
@@ -306,23 +316,29 @@ function renderResult(result, attempt) {
 }
 
 async function explainAttempt() {
+  const token = practiceToken;
+  const attemptId = lastAttemptId;
   els.explainButton.disabled = true;
+  els.next.disabled = true;
   els.explainButton.setAttribute("aria-busy", "true");
   els.explainError.hidden = true;
   setStatus("Writing an explanation…");
   try {
-    const { text } = await api("/api/explain", jsonRequest("POST", { attemptId: lastAttemptId }));
+    const { text } = await api("/api/explain", jsonRequest("POST", { attemptId }));
+    if (token !== practiceToken) return;
     els.explanationText.textContent = text;
     els.explanation.hidden = false;
     els.explain.hidden = true;
     setStatus("");
     els.explanationHeading.focus();
   } catch (error) {
+    if (token !== practiceToken) return;
     setStatus("");
     els.explainError.textContent = error.message;
     els.explainError.hidden = false;
     els.explainButton.disabled = false;
   } finally {
+    els.next.disabled = false;
     els.explainButton.removeAttribute("aria-busy");
   }
 }
@@ -423,6 +439,7 @@ async function saveSettings(event) {
         dailyChunkCap,
       }),
     );
+    practiceToken++; // a reply still in flight belongs to the old settings
     practiceState = "none"; // the next visit to Practice picks a sentence for the new settings
     els.settingsStatus.textContent = "Settings saved.";
   } catch (error) {

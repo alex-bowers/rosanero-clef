@@ -50,7 +50,7 @@ The daily job runs at 05:00 UTC. It fetches about the daily sentence cap (20 by 
 ## If something goes wrong
 
 - **Stop the daily job:** remove the `triggers` block from `wrangler.local.jsonc` (and `wrangler.jsonc`, to keep them in step) and deploy.
-- **Stop all spending quickly:** set `DAILY_ATTEMPT_CAP` and `DAILY_EXPLAIN_CAP` to `"0"` in `wrangler.local.jsonc` and deploy, and set the daily sentence cap to 0 on the Settings page.
+- **Stop all spending quickly:** set `DAILY_ATTEMPT_CAP` and `DAILY_EXPLAIN_CAP` to `"0"` in `wrangler.local.jsonc` and deploy, and set the daily sentence cap to 0 on the Settings page. A cap of 0 also makes the daily job skip rating and translation, so no scheduled AI calls are made.
 - **Go back to the previous version:** `pnpm exec wrangler rollback`.
 
 ## Known limitations

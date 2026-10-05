@@ -171,3 +171,17 @@ test("GET /api/usage validates days and only accepts GET", async () => {
   for (const days of ["0", "91", "x", "1.5"]) assert.equal((await call(get(`/api/usage?days=${days}`), deps)).status, 400, days);
   assert.equal((await call(post("/api/usage", {}), deps)).status, 405);
 });
+
+test("GET /api/usage says when the totals cover only the newest 5,000 calls", async () => {
+  const { db, store } = await seedChunks();
+  const deps = makeDeps(store, GENEROUS);
+  await db.batch(
+    Array.from({ length: 5001 }, () =>
+      db.prepare("INSERT INTO ai_calls (purpose, model, ok, duration_ms) VALUES ('score', 'm', 1, 5)"),
+    ),
+  );
+
+  const { body } = await call(get("/api/usage?days=7"), deps);
+  assert.equal(body.truncated, true);
+  assert.equal(body.calls[0].calls, 5000);
+});

@@ -1,5 +1,5 @@
 import { sleep, withTimeout } from "../async.ts";
-import { metered } from "../metering.ts";
+import { lateCall, metered } from "../metering.ts";
 import type { CallListener } from "../metering.ts";
 import type { Env, ExplainInput, LlmClient } from "../types.ts";
 
@@ -83,6 +83,7 @@ export class WorkersAiLlmClient implements LlmClient {
           withTimeout(
             this.ai.run(this.model, { messages, temperature: 0, max_tokens: 512 }),
             this.timeoutMs,
+            (late) => lateCall(this.onCall, this.model, late, this.timeoutMs),
           ),
         );
         return readText(result);

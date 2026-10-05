@@ -223,13 +223,13 @@ export class D1Store implements IngestStore, RatingStore, TranslationStore, Prac
     return row?.n ?? 0;
   }
 
-  async usageCalls(days: number): Promise<CallRow[]> {
+  async usageCalls(days: number, limit: number): Promise<CallRow[]> {
     const { results } = await this.db
       .prepare(
         `SELECT purpose, model, ok, duration_ms AS durationMs, input_tokens AS inputTokens, output_tokens AS outputTokens
-         FROM ai_calls WHERE at >= datetime('now', ?) ORDER BY id DESC LIMIT 5000`,
+         FROM ai_calls WHERE at >= datetime('now', ?) ORDER BY id DESC LIMIT ?`,
       )
-      .bind(`-${Math.floor(days)} days`)
+      .bind(`-${Math.floor(days)} days`, limit)
       .all<Omit<CallRow, "ok"> & { ok: number }>();
     return results.map((row) => ({ ...row, ok: row.ok === 1 }));
   }

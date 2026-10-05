@@ -1,6 +1,6 @@
 // Usage: node evals/run-scoring.ts [file.json]   (default: evals/scoring-calibration.json)
 // Needs the dev proxy running (`pnpm eval:proxy`). Only items with a non-null "label" are used.
-// Environment: AI_PROXY_URL (default http://localhost:8799), MODEL (default @cf/cloudflare/clef-flash).
+// Environment: AI_PROXY_URL (default http://localhost:8799), MODEL (default @cf/cloudflare/clef, as used in production).
 import { readFileSync } from "node:fs";
 import { ClefClient } from "../src/decision/clef.ts";
 import { evaluate } from "../src/eval/calibration.ts";
@@ -9,7 +9,7 @@ import { scoreAttempt, VERDICTS } from "../src/scoring.ts";
 
 const file = process.argv[2] ?? "evals/scoring-calibration.json";
 const proxy = process.env.AI_PROXY_URL ?? "http://localhost:8799";
-const model = process.env.MODEL ?? "@cf/cloudflare/clef-flash";
+const model = process.env.MODEL ?? "@cf/cloudflare/clef";
 
 interface Item {
   id: string;

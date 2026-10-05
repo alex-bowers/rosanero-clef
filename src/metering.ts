@@ -30,6 +30,14 @@ export async function metered<T>(
   return result;
 }
 
+/**
+ * Records a call whose result arrived after its timeout. The attempt itself was already
+ * recorded as failed, so this adds the tokens that were spent; its duration is at least the timeout.
+ */
+export function lateCall(listener: CallListener | undefined, model: string, result: unknown, timeoutMs: number): void {
+  void report(listener, { model, ok: true, durationMs: timeoutMs, ...readUsage(result) });
+}
+
 /** Clef reports input_tokens and output_tokens; text models use the OpenAI names. */
 export function readUsage(result: unknown): { inputTokens: number | null; outputTokens: number | null } {
   const usage = (result as { usage?: Record<string, unknown> } | null)?.usage;

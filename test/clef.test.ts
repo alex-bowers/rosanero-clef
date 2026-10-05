@@ -96,3 +96,27 @@ test("times out a call that never returns", async () => {
     /Timed out after 20 ms/,
   );
 });
+
+test("rejects probabilities that are negative, above one or all zero", async () => {
+  for (const probabilities of [{ "0": -1, "1": 2 }, { "0": 0, "1": 0 }, { "0": Number.NaN, "1": 1 }]) {
+    const { ai } = fakeAi(() => ({ answers: { q: { probabilities } } }));
+    const client = new ClefClient(ai, { model: "m", retries: 0 });
+    await assert.rejects(client.score({ state: "x", instructions: "Rate", levels: 2 }), /probabilit/);
+  }
+});
+
+test("records the tokens of a call that finishes after its timeout", async () => {
+  const recorded: any[] = [];
+  const ai = {
+    async run() {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      return { answers: { q: { probabilities: { "0": 1 } } }, usage: { input_tokens: 7, output_tokens: 3 } };
+    },
+  };
+  const client = new ClefClient(ai, { model: "m", retries: 0, timeoutMs: 10, onCall: (call) => void recorded.push(call) });
+
+  await assert.rejects(client.score({ state: "x", instructions: "Rate", levels: 1 }), /Timed out/);
+  await new Promise((resolve) => setTimeout(resolve, 60));
+
+  assert.deepEqual(recorded.map((c) => [c.ok, c.inputTokens]), [[false, null], [true, 7]]);
+});

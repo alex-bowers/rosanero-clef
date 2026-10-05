@@ -4,6 +4,7 @@ import { needsExplanation, scoreAttempt } from "./scoring.ts";
 import type { DecisionClient, Distribution, LlmClient } from "./types.ts";
 
 const MAX_BODY_BYTES = 4096;
+const MAX_USAGE_ROWS = 5000;
 const MAX_ATTEMPT_CHARS = 1000;
 const MAX_DAILY_CHUNK_CAP = 40;
 
@@ -97,7 +98,8 @@ export interface PracticeStore {
   logRequest(route: string): Promise<void>;
   requestsInLastSeconds(route: string, seconds: number): Promise<number>;
   requestsToday(route: string): Promise<number>;
-  usageCalls(days: number): Promise<CallRow[]>;
+  /** Newest first. Asking for one more row than is shown reveals whether the list was cut. */
+  usageCalls(days: number, limit: number): Promise<CallRow[]>;
 }
 
 export interface ApiDeps {
@@ -314,7 +316,7 @@ async function usage(url: URL, deps: ApiDeps): Promise<Response> {
   const [attemptsToday, explainsToday, calls] = await Promise.all([
     deps.store.requestsToday("attempt"),
     deps.store.requestsToday("explain"),
-    deps.store.usageCalls(days),
+    deps.store.usageCalls(days, MAX_USAGE_ROWS + 1),
   ]);
   return json({
     days,
@@ -322,7 +324,9 @@ async function usage(url: URL, deps: ApiDeps): Promise<Response> {
       attempts: { used: attemptsToday, limit: deps.limits.dailyAttempts },
       explanations: { used: explainsToday, limit: deps.limits.dailyExplains },
     },
-    calls: summariseCalls(calls),
+    // When true, the totals cover only the newest rows, not the whole period.
+    truncated: calls.length > MAX_USAGE_ROWS,
+    calls: summariseCalls(calls.slice(0, MAX_USAGE_ROWS)),
   });
 }
 
@@ -383,10 +387,26 @@ export function levelsWithin(target: string, range: number): string[] {
 async function readJsonBody(
   request: Request,
 ): Promise<{ body: Record<string, unknown> } | { error: Response }> {
-  const text = await request.text();
-  if (new TextEncoder().encode(text).length > MAX_BODY_BYTES) {
-    return { error: json({ error: "The request is too large" }, 413) };
+  const tooLarge = { error: json({ error: "The request is too large" }, 413) };
+  if (Number(request.headers.get("content-length")) > MAX_BODY_BYTES) return tooLarge;
+
+  // Content-Length can be absent or wrong, so also stop reading once the budget is spent.
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  if (request.body) {
+    const reader = request.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > MAX_BODY_BYTES) {
+        await reader.cancel();
+        return tooLarge;
+      }
+      chunks.push(value);
+    }
   }
+  const text = new TextDecoder().decode(await new Blob(chunks).arrayBuffer());
   let value: unknown;
   try {
     value = JSON.parse(text);

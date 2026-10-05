@@ -34,28 +34,45 @@ export default {
 
   async scheduled(_controller: unknown, env: Env): Promise<void> {
     const store = new D1Store(env.DB);
+    // A sentence cap of 0 is the app's AI pause switch: ingest, rating and translation all stand down.
+    const paused = await store.dailyChunkCap().then(
+      (cap) => cap === 0,
+      (error) => {
+        console.error(`Could not read the sentence cap, so AI steps are paused: ${String(error)}`);
+        return true;
+      },
+    );
     await runSteps([
       ["Ingest", () => runIngest({ store, fetcher: new PoliteFetcher() })],
       [
         "Rating",
         () =>
-          runRating({
-            store,
-            decision: new ClefClient(env.AI, { model: env.DECISION_MODEL, onCall: recordCalls(store, "rate") }),
-          }),
+          paused
+            ? skipped("Rating")
+            : runRating({
+                store,
+                decision: new ClefClient(env.AI, { model: env.DECISION_MODEL, onCall: recordCalls(store, "rate") }),
+              }),
       ],
       [
         "Translation",
         () =>
-          runTranslation({
-            store,
-            llm: new WorkersAiLlmClient(env.AI, { model: env.LLM_MODEL, onCall: recordCalls(store, "translate") }),
-          }),
+          paused
+            ? skipped("Translation")
+            : runTranslation({
+                store,
+                llm: new WorkersAiLlmClient(env.AI, { model: env.LLM_MODEL, onCall: recordCalls(store, "translate") }),
+              }),
       ],
       ["Cleanup", () => store.pruneOldRows()],
     ]);
   },
 };
+
+function skipped(step: string): Promise<void> {
+  console.log(`${step} skipped: the daily sentence cap is 0.`);
+  return Promise.resolve();
+}
 
 async function handle(request: Request, env: Env): Promise<Response> {
   const { pathname } = new URL(request.url);

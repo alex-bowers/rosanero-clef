@@ -1,5 +1,5 @@
 import { sleep, withTimeout } from "../async.ts";
-import { metered } from "../metering.ts";
+import { lateCall, metered } from "../metering.ts";
 import type { CallListener } from "../metering.ts";
 import type { DecisionClient, Distribution, Env } from "../types.ts";
 
@@ -69,7 +69,9 @@ export class ClefClient implements DecisionClient {
     for (let attempt = 0; attempt <= this.retries; attempt++) {
       try {
         const result = await metered(this.model, this.onCall, () =>
-          withTimeout(this.ai.run(this.model, body), this.timeoutMs),
+          withTimeout(this.ai.run(this.model, body), this.timeoutMs, (late) =>
+            lateCall(this.onCall, this.model, late, this.timeoutMs),
+          ),
         );
         const answers = (result as { answers?: Record<string, unknown> } | null)?.answers;
         if (!answers || !(QUESTION_ID in answers)) {
@@ -94,13 +96,20 @@ function toDistribution(answer: unknown, labels: string[]): Distribution {
     ?.probabilities;
   if (!probabilities) throw new Error("Clef answer has no probabilities");
 
-  return labels.map((label) => {
+  const distribution = labels.map((label) => {
     const probability = probabilities[label];
     if (typeof probability !== "number") {
       throw new Error(`Clef answer is missing a probability for "${label}"`);
     }
+    if (!Number.isFinite(probability) || probability < 0 || probability > 1) {
+      throw new Error(`Clef answer has an invalid probability for "${label}": ${probability}`);
+    }
     return { label, probability };
   });
+  if (distribution.every((entry) => entry.probability === 0)) {
+    throw new Error("Clef answer has no positive probability");
+  }
+  return distribution;
 }
 
 /** Bad requests will not improve on retry. */

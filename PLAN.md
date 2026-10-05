@@ -89,7 +89,7 @@ The owner changed 3 of the planner’s 40 draft labels (two reversed-meaning att
 - **Measured on a real run:** Clef (27B) scoring had a median of 479 ms and a 95th percentile of 900 ms over 4 calls, at about 375 input tokens and 0 output tokens per call. One Mistral explanation took 2.9 s (435 input, 106 output tokens). These are small samples, but they are the numbers to compare against Jev.
 - **Remote migrations 0002 and 0003 applied** on 5 October 2026.
 - **Deployed** on 5 October 2026 as a Worker with no public address, behind a Cloudflare Access application created beforehand. Unsigned requests were checked and redirected to the sign-in page. The remote database was seeded with 28 sentences.
-- **Still to do:** confirm the first 05:00 UTC ingest in the logs, set an account budget alert (see DEPLOY.md, step 4), and optionally verify the Access token inside the Worker (an authentication change, so it needs approval).
+- **Still to do:** confirm the first 05:00 UTC ingest in the logs, set an account budget alert (see DEPLOY.md, step 4).
 
 ### Explanation prompt (4 October 2026, Mistral Small 3.1, four attempt types)
 

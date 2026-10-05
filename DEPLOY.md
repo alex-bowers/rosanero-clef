@@ -57,4 +57,3 @@ The daily job runs at 05:00 UTC. It fetches about the daily sentence cap (20 by 
 
 - The request limits are counted in the database with a check followed by an insert, so two requests at the same instant could both get through. That is acceptable for one user.
 - Explanations and ratings come from AI models and can be wrong. The screens say so.
-- The Worker does not verify the Cloudflare Access token itself, so it relies entirely on Access being configured correctly. Verifying the token in the Worker is a worthwhile extra layer, but it is a change to authentication.

@@ -8,9 +8,15 @@ The app has no sign-in of its own. **Cloudflare Access must be the only way in**
 - A D1 database created for the app, with its ID set in `wrangler.local.jsonc` (see the README's Cloudflare setup steps).
 - A domain that is a zone in your Cloudflare account, with DNS managed by Cloudflare. In this document `app.example.com` stands for the address you will use.
 
-## 1. Deploy with no public address
+## 1. Put Access in front of the subdomain
 
-The config turns off `workers_dev` and `preview_urls`, so the only public address is the custom domain in `routes`. Make sure `wrangler.local.jsonc` has your real hostname and database ID, not the placeholders in [wrangler.jsonc](wrangler.jsonc).
+Create a Zero Trust self-hosted application for `app.example.com` **before** the first deploy. The `routes` entry in the config attaches the custom domain as soon as `wrangler deploy` runs, and Access enforces at Cloudflare's edge as soon as the hostname starts going through Cloudflare.
+
+The application's policy should be an **Allow** rule for your own email address (or another rule you trust). **Do not allow a whole email domain such as `gmail.com`**, which would admit anyone with an address there.
+
+## 2. Deploy
+
+The config turns off `workers_dev` and `preview_urls`, so the only public address is the custom domain in `routes`, which is why Access must exist first. Make sure `wrangler.local.jsonc` has your real hostname and database ID, not the placeholders in [wrangler.jsonc](wrangler.jsonc).
 
 ```sh
 pnpm test
@@ -20,24 +26,18 @@ pnpm run deploy
 
 Use `pnpm run deploy`: plain `pnpm deploy` is a different built-in pnpm command.
 
-The daily job runs at 05:00 UTC. It fetches up to the daily sentence cap (20 by default) from the news site, then rates and translates the sentences. They accumulate in the database until you open the app.
+The daily job runs at 05:00 UTC. It fetches about the daily sentence cap (20 by default; the cap is checked between articles, so the last article can take it over) from the news site, then rates and translates the sentences. They accumulate in the database until you open the app.
 
-## 2. Put Access in front of the subdomain
+## 3. Check the subdomain
 
-Create a Zero Trust self-hosted application for `app.example.com` **before** adding the domain to the Worker. Access enforces at Cloudflare's edge as soon as the hostname starts going through Cloudflare.
-
-The application's policy should be an **Allow** rule for your own email address (or another rule you trust). **Do not allow a whole email domain such as `gmail.com`**, which would admit anyone with an address there.
-
-## 3. Add the subdomain
-
-1. In the Worker's **Settings**, open **Domains & Routes**, choose **Add**, then **Custom domain**, and enter `app.example.com`. Cloudflare creates the DNS record and certificate. Keep it in `routes` in `wrangler.jsonc` so a later deploy does not drop it.
+1. The first deploy creates the DNS record and certificate for the hostname in `routes`. Keep it in `routes` in `wrangler.jsonc` so a later deploy does not drop it. If you would rather add the domain by hand, remove `routes` from your local config, deploy, then add it under **Domains & Routes → Add → Custom domain** in the Worker's **Settings**.
 2. **Check that Access is in front of it before using it.** From a terminal that is not signed in:
 
    ```sh
    curl -sI https://app.example.com/api/health
    ```
 
-   You should get a redirect to a Cloudflare sign-in page (HTTP 302), not `200 OK`. If you get `200`, remove the custom domain straight away and fix Access first. The usual cause is that the Access application hostname does not exactly match the domain.
+   You should get a redirect to a Cloudflare sign-in page (HTTP 302), not `200 OK`. If you get `200`, remove the custom domain straight away (delete `routes` and deploy, or remove it in the dashboard) and fix Access first. The usual cause is that the Access application hostname does not exactly match the domain.
 3. If a browser shows `DNS_PROBE_FINISHED_NXDOMAIN` just after a domain is added, it is a stale cached answer. Clear the browser's DNS cache or wait up to 30 minutes.
 
 ## 4. Check it works

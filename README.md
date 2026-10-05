@@ -1,6 +1,6 @@
-# Palermo Italian Reader
+# Rosanero
 
-A private, mobile-first web app that helps one person learn Italian through Palermo FC news. It runs entirely on Cloudflare.
+A private, mobile-first web app that helps one person learn Italian through Palermo FC news. It runs entirely on Cloudflare. The point of this was to play with Clef.
 
 A Clef decision model rates each chunk's difficulty (CEFR, A1 to C2) and scores the learner's translations. An LLM only writes text: the reference translation at ingest, and explanations on request. See [PLAN.md](PLAN.md) for the full design and milestones.
 
@@ -8,7 +8,7 @@ A Clef decision model rates each chunk's difficulty (CEFR, A1 to C2) and scores 
 
 Milestones 1 to 6 are done: practice, result, explanations, history and settings all work in the browser. Milestone 7 (hardening) is mostly done: rate limits, daily caps, call logging and error handling are built, and the app has been deployed behind Cloudflare Access. See [DEPLOY.md](DEPLOY.md) for the deployment checklist.
 
-A daily scheduled run discovers articles on forzapalermo.it, splits them into chunks, rates each chunk's difficulty with Clef-flash, and stores a reference English translation from Mistral Small 3.1 (all via Workers AI).
+A daily scheduled run discovers articles on forzapalermo.it, splits them into chunks, rates each chunk's difficulty with Clef-flash, and stores a reference English translation from Mistral Small 3.1 (all via Workers AI). The daily sentence cap is soft: it is checked between articles, and an article is always stored whole. If the site's RSS feed fails, discovery falls back to its listing pages.
 
 To try it locally: run `pnpm db:migrate:local`, start `pnpm exec wrangler dev --test-scheduled --config wrangler.local.jsonc`, visit `/__scheduled?cron=0+5+*+*+*` once to ingest, rate and translate the day's sentences (about a minute), then open the dev URL. The dev server makes real Workers AI calls.
 
@@ -18,6 +18,7 @@ The app has no sign-in of its own and every attempt spends Workers AI credits, s
 
 | Route | What it does |
 |---|---|
+| `GET /api/health` | Returns `{ "ok": true, "decisionModel": "..." }`. It does not call Workers AI or the database. |
 | `GET /api/chunks/next` | A sentence at your target level and within your level range (both from settings), preferring ones you have not attempted. `?level=` and `?range=` override the settings. It never includes the reference translation. |
 | `POST /api/attempt` with `{ "chunkId": 1, "attempt": "..." }` | Scores the attempt (up to 1,000 characters) with Clef, stores it, and returns the verdict, fluency (0 to 4), whether to offer an explanation, and the reference translation. |
 | `POST /api/explain` with `{ "attemptId": 1 }` | Writes short feedback with the language model, only when asked. Each attempt is explained once; later requests return the stored text. |
@@ -43,7 +44,7 @@ pnpm test
 
 ## Set up Cloudflare (owner steps)
 
-1. Install Wrangler: `pnpm add -D wrangler`.
+1. Install the dependencies (Wrangler is the only one): `pnpm install`.
 2. Sign in: `pnpm exec wrangler login`.
 3. Create the database: `pnpm exec wrangler d1 create palermo-reader`.
 4. Copy [wrangler.jsonc](wrangler.jsonc) to `wrangler.local.jsonc`, which is git-ignored. In the copy, replace `REPLACE_WITH_D1_DATABASE_ID` with the ID the previous command printed, and `app.example.com` with your own hostname. The `pnpm` scripts below use the local copy, so your real values are never committed.
@@ -85,4 +86,13 @@ The report adds two checks: how often an attempt is judged acceptable versus not
 
 ## Configuration
 
-Non-secret settings live in `vars` in [wrangler.jsonc](wrangler.jsonc): the decision model, the daily chunk cap and the confidence threshold. Secrets, if any are ever needed, go in with `wrangler secret put` and are never committed.
+Non-secret settings live in `vars` in [wrangler.jsonc](wrangler.jsonc):
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `DECISION_MODEL` | `@cf/cloudflare/clef-flash` | Clef model that rates each chunk's difficulty at ingest |
+| `SCORING_MODEL` | `@cf/cloudflare/clef` | Clef model that scores translation attempts |
+| `LLM_MODEL` | `@cf/mistralai/mistral-small-3.1-24b-instruct` | Model that writes reference translations and explanations |
+| `CONFIDENCE_THRESHOLD` | 0.45 | The Explain button also appears when the scorer's confidence is below this |
+
+The request limits are described under [Limits and cost control](#limits-and-cost-control). The target level, level range and daily sentence cap are not in `vars`: they are stored in the database and changed on the Settings page. Secrets, if any are ever needed, go in with `wrangler secret put` and are never committed.

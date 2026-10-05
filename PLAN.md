@@ -120,21 +120,31 @@ Phone browser -> Worker (static frontend + JSON API) -> D1
    POST /api/explain -> LLM explains (on demand, cached)
 ```
 
-Stack: TypeScript, Wrangler, one Worker serving both the API and static assets, D1 (SQLite). Hono for routing is fine. Frontend: plain HTML/CSS/JS or a very small framework; no heavy build chain unless needed. Mobile-first, big tap targets, works one-handed.
+Stack: TypeScript, Wrangler, one Worker serving both the API and static assets, D1 (SQLite). Routing is a plain `switch` on the path in `src/api.ts`; there is no router library. Frontend: plain HTML/CSS/JS with no build step. Mobile-first, big tap targets, works one-handed.
 
-Suggested layout:
+Layout:
 ```
 src/
-  index.ts            # routes + scheduled handler
-  ingest/             # feed.ts, extract.ts, chunk.ts
-  decision/           # DecisionClient interface, clef.ts, mock.ts
-  llm/                # LlmClient interface, workersai.ts, anthropic.ts, mock.ts
-  rating.ts           # CEFR rating logic
-  scoring.ts          # translation scoring logic
-  db.ts               # D1 queries
-public/               # frontend
-migrations/           # D1 SQL migrations
-evals/                # calibration sets + runner
+  index.ts            # fetch handler (static assets + API) and scheduled handler
+  api.ts              # routes, validation, rate limits, usage summary
+  db.ts               # D1 queries (one D1Store implementing every store interface)
+  jobs.ts             # runs the daily steps so one failure does not stop the rest
+  pending.ts          # shared loop for rating and translation (stops after 3 failures in a row)
+  async.ts            # sleep and withTimeout
+  metering.ts         # times and reports every Workers AI call
+  rating.ts           # CEFR levels, prompts and summary maths
+  rate.ts             # daily rating step
+  translate.ts        # daily translation step
+  scoring.ts          # translation scoring prompts and gating
+  normalise.ts        # tidyAttempt
+  types.ts            # DecisionClient, LlmClient, Env and D1 types
+  ingest/             # discover.ts, fetch.ts, sources.ts, html.ts, chunk.ts, run.ts
+  decision/           # clef.ts, mock.ts
+  llm/                # workersai.ts, mock.ts
+  eval/               # calibration.ts (metrics used by the eval scripts)
+public/               # index.html, app.js, style.css, _headers
+migrations/           # D1 SQL migrations (0001 to 0003)
+evals/                # calibration runners, smoke set, dev-only AI proxy
 test/
 ```
 
@@ -144,7 +154,9 @@ test/
 - `chunks`: id, article_id, position, italian_text, word_count, heuristics_json, cefr_probs_json (full distribution), cefr_expected (numeric, probability-weighted), cefr_top (label), cefr_confidence, reference_en, translated_at
 - `attempts`: id, chunk_id, attempt_text, verdict_probs_json, verdict_top, fluency_score, confidence, needs_explanation (bool), created_at
 - `explanations`: id, attempt_id, text, model, created_at
-- `settings`: single row (target_level, daily_chunk_cap)
+- `settings`: single row (target_level, daily_chunk_cap, level_range; `level_range` was added in migration 0002)
+- `request_log`: id, route, at. One row per accepted attempt or explain request, used for the rate limits (migration 0003; rows older than 2 days are pruned)
+- `ai_calls`: id, at, purpose, model, ok, duration_ms, input_tokens, output_tokens. One row per Workers AI call, used by `/api/usage` (migration 0003; rows older than 90 days are pruned)
 
 Dedupe articles by URL and content hash. Use migrations, not ad hoc schema changes.
 
@@ -154,8 +166,9 @@ Dedupe articles by URL and content hash. Use migrations, not ad hoc schema chang
 - Respect a daily cap (default 20 new chunks) to control cost.
 - Extract article body text only (no nav, ads, comments). Skip purely boilerplate pages.
 - Sentence-split with `Intl.Segmenter('it', { granularity: 'sentence' })`. Group into chunks of 1-3 sentences, roughly 15-60 words. Drop chunks that are mostly a quote with no context, lists of names, or boilerplate.
-- Heuristics stored alongside the model rating as a sanity check: word count, mean sentence length, mean word length, share of rare words (simple list is fine).
-- Batch Clef calls (a single call can hold many questions). Handle cold starts with retries and long timeouts.
+- Heuristics stored alongside the model rating as a sanity check: word count, sentence count, mean sentence length and mean word length. A share of rare words was planned but not built.
+- Discovery reads the RSS feed first. On 3 October 2026 the feeds returned HTTP 500, so the listing pages are the fallback. Pages are fetched one at a time, 3 seconds apart (the site's `Crawl-delay`), with an identifiable User-Agent, and at most 15 articles are inspected per run. The daily cap is soft: it is checked between articles and an article is always stored whole.
+- Rating and translation are separate steps that run after ingest in the same daily job, one chunk per call (up to 100 pending chunks per run). A failed chunk is retried by the next run, and three failures in a row stop the step. Clef calls are not batched.
 
 **CEFR rating (Clef, Choice question):**
 - Options: A1, A2, B1, B2, C1, C2. Write clear `instructions` describing the task: rate the reading difficulty of this Italian text for an English-speaking learner.
@@ -163,15 +176,16 @@ Dedupe articles by URL and content hash. Use migrations, not ad hoc schema chang
 - Football journalism skews hard. The UI must let the owner filter by a target level and see a chunk's rating before attempting it.
 
 **Reference translation (LLM):**
-- Done at ingest, stored in `chunks.reference_en`, hidden from the UI until after the attempt.
+- Written by the daily job's translation step after ingest, stored in `chunks.reference_en`, hidden from the UI until after the attempt. A chunk is only offered for practice once it has a translation.
 - Prompt for a faithful, natural English translation. Keep output plain text only.
 
 **Scoring an attempt (Clef):**
 - State: `{ italian, reference, attempt }`.
-- Question 1 (Choice, "meaning"): fully_correct, minor_issue, partly_correct, wrong.
-- Question 2 (Score, "fluency"): small scale (e.g. 5 levels).
+- Choice ("meaning"): fully_correct, minor_issue, partly_correct, wrong.
+- Score ("fluency"): 5 levels, 0 to 4.
+- These are two Clef calls made in parallel (one question each), using `SCORING_MODEL`. The attempt goes through `tidyAttempt` first.
 - Instruct the model that valid alternative phrasings should be accepted if the meaning is preserved (the reference is one acceptable translation, not the only one).
-- Gating: if top probability is below a configurable threshold, OR verdict is partly_correct/wrong, set `needs_explanation` and show an "Explain" button. Never auto-call the LLM; the user taps.
+- Gating: if top probability is below a configurable threshold (`CONFIDENCE_THRESHOLD`, 0.45), OR verdict is partly_correct/wrong, set `needs_explanation` and show an "Explain" button. Never auto-call the LLM; the user taps.
 - Return to the UI: verdict, confidence, fluency, and the reference translation.
 
 **Explain (LLM, on demand):**
@@ -181,8 +195,8 @@ Dedupe articles by URL and content hash. Use migrations, not ad hoc schema chang
 
 ```ts
 interface DecisionClient {
-  choice(opts: { state: unknown; instructions: string; options: string[] }): Promise<Distribution>;
-  score(opts: { state: unknown; instructions: string; levels: number }): Promise<Distribution>;
+  choice(opts: { state: unknown; instructions: string; options: string[]; descriptions?: Record<string, string> }): Promise<Distribution>;
+  score(opts: { state: unknown; instructions: string; levels: number; descriptions?: string[] }): Promise<Distribution>;
 }
 interface LlmClient {
   translate(it: string[]): Promise<string[]>;
@@ -190,16 +204,17 @@ interface LlmClient {
 }
 ```
 
-- Implement `ClefClient` with two transports (env.AI binding and REST) if both work; pick whichever the docs support.
+- `ClefClient` uses the `env.AI` binding only. The REST transport was not needed. It retries (twice by default, with backoff) except on `invalid_request` errors, and times out each call.
+- `WorkersAiLlmClient` is the only LLM client. There is no Anthropic client.
 - Implement `MockDecisionClient` and `MockLlmClient` for tests and local dev with no network.
-- Config (model name, thresholds, daily cap, LLM provider) lives in `wrangler.jsonc` vars / D1 settings, not hardcoded.
+- Config lives in `wrangler.jsonc` vars (models, confidence threshold, request limits) and D1 settings (target level, level range, daily sentence cap), not hardcoded. Each limit falls back to a built-in default if its var is missing or invalid.
 
 ## 8. Frontend (mobile-first)
 
 Screens:
 1. **Practice:** shows a chunk (Italian), its CEFR rating with confidence, link to the source article, a text box for the translation, Submit.
 2. **Result:** verdict + confidence, fluency, the reference translation, an "Explain" button when `needs_explanation`.
-3. **Settings:** target level, a "next chunk" filter (e.g. within one level of target).
+3. **Settings:** target level, a "next chunk" filter (the level range, offered as the target level only, within one level or within two levels) and the daily sentence cap.
 4. **History:** past attempts and scores (simple list is enough).
 
 Show the probability distribution visually (a small bar for the CEFR rating) since showing how the decision model works is the point of the app. Keep it fast and uncluttered.
@@ -210,9 +225,11 @@ Colour scheme: Palermo FC's pink and black, but not too dark. Use a sans-serif f
 
 - Unit tests with the mocks for chunking, CEFR expected-level math, gating logic, and API routes.
 - **Calibration sets** in `evals/`: ~40 Italian chunks the owner has graded by level, and ~40 (italian, reference, attempt, true_verdict) examples including valid paraphrases and clear errors. A script reports accuracy and calibration (is a "70% confident" call right ~70% of the time?). Run it against real Clef once deployed and report numbers honestly. The owner will fill in labels; generate unlabelled templates for them.
-- Include a robustness check: the same decision should not flip when harmless surrounding context is added.
+- Include a robustness check: the same decision should not flip when harmless surrounding context is added. Built so far: the scoring eval checks whether the verdict changes when the attempt is typed in lower case with no punctuation. Adding harmless surrounding context was not built.
 
 ## 10. Milestones (stop and report after each)
+
+Status on 5 October 2026: milestones 1 to 6 are done. Milestone 7 is mostly done (see "Hardening progress" in section 3 for what remains).
 
 1. **Scaffold:** repo, wrangler config, D1 migrations, mocks, test runner, README with setup steps. Acceptance: tests pass locally with mocks.
 2. **Ingest:** feed + article extraction + chunking, run against real pages. Acceptance: shows 20 sample chunks to the owner.
@@ -225,7 +242,7 @@ Colour scheme: Palermo FC's pink and black, but not too dark. Use a sans-serif f
 ## 11. Steps only the owner can do (ask when you reach them)
 
 - `wrangler login`, create the D1 database, put the database ID in config.
-- Add secrets with `wrangler secret put` (only an Anthropic API key if that LLM option is chosen; never commit secrets).
+- Add secrets with `wrangler secret put` if any are ever needed (none are, because the LLM is a Workers AI model; never commit secrets).
 - Enable Workers AI on the account and confirm Clef access.
 - Set up Cloudflare Access for the app's URL.
 - Label the calibration sets.

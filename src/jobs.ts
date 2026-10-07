@@ -3,7 +3,21 @@ export type Step = [name: string, run: () => Promise<unknown>];
 export interface StepResult {
   name: string;
   ok: boolean;
+  /** What the step returned, for example the ingest summary. */
+  output?: unknown;
   error?: string;
+}
+
+/** Runs one step. A step that throws is logged and reported as failed rather than thrown. */
+export async function runStep([name, run]: Step): Promise<StepResult> {
+  try {
+    const output = await run();
+    console.log(`${name} finished`, JSON.stringify(output));
+    return output === undefined ? { name, ok: true } : { name, ok: true, output };
+  } catch (error) {
+    console.error(`${name} failed: ${String(error)}`);
+    return { name, ok: false, error: String(error) };
+  }
 }
 
 /**
@@ -12,14 +26,6 @@ export interface StepResult {
  */
 export async function runSteps(steps: Step[]): Promise<StepResult[]> {
   const results: StepResult[] = [];
-  for (const [name, run] of steps) {
-    try {
-      console.log(`${name} finished`, JSON.stringify(await run()));
-      results.push({ name, ok: true });
-    } catch (error) {
-      console.error(`${name} failed: ${String(error)}`);
-      results.push({ name, ok: false, error: String(error) });
-    }
-  }
+  for (const step of steps) results.push(await runStep(step));
   return results;
 }

@@ -24,7 +24,10 @@
       "migrations_dir": "migrations"
     }
   ],
-  "triggers": { "crons": ["0 5 * * *"] },
+  // New sentences are fetched when the app's button is pressed, not on a schedule. The empty list
+  // removes the old 05:00 UTC cron on the next deploy; leaving the key out would keep it.
+  "triggers": { "crons": [] },
+  "workflows": [{ "name": "rosanero-crawl", "binding": "CRAWL", "class_name": "CrawlWorkflow" }],
   "observability": { "enabled": true },
   "vars": {
     "DECISION_MODEL": "@cf/cloudflare/clef-flash",

@@ -48,6 +48,11 @@ export interface Env {
   AI: { run(model: string, input: unknown): Promise<unknown> };
   DB: D1Like;
   ASSETS: { fetch(request: Request): Promise<Response> };
+  /** The Workflow behind the "Fetch new sentences" button. */
+  CRAWL: {
+    create(options: { params: { runId: number } }): Promise<{ id: string }>;
+    get(id: string): Promise<{ status(): Promise<{ status: string }> }>;
+  };
   /** Clef model that rates chunk difficulty at ingest. */
   DECISION_MODEL: string;
   /** Clef model that scores translation attempts. */

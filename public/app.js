@@ -1,6 +1,14 @@
 const SITE_ORIGIN = "https://forzapalermo.it";
 const VIEWS = ["practice", "history", "settings"];
 const MAX_DAILY_CAP = 40;
+/** How often to check on a fetch that is under way. */
+const FETCH_POLL_MS = 4000;
+const FETCH_STEPS = {
+  Ingest: "Reading the latest articles",
+  Rating: "Rating how hard each sentence is",
+  Translation: "Writing reference translations",
+  Cleanup: "Finishing up",
+};
 
 const VERDICTS = {
   fully_correct: { icon: "✓", title: "Spot on" },
@@ -21,6 +29,9 @@ const els = {
   problem: $("problem"),
   problemText: $("problem-text"),
   retry: $("retry"),
+  fetch: $("fetch"),
+  fetchText: $("fetch-text"),
+  fetchButton: $("fetch-button"),
   practice: $("practice"),
   practiceHeading: $("practice-heading"),
   italian: $("italian"),
@@ -69,11 +80,17 @@ let practiceToken = 0;
 /** What the practice view is showing: a sentence to translate, a result, or nothing yet. */
 let practiceState = "none";
 let retryAction = () => loadNext();
+/** Whether the last status seen had a fetch under way, so its end can be spotted. */
+let fetchRunning = false;
+let fetchTimer = null;
+/** The outcome of a fetch that finished while the app was open, shown until the next press. */
+let fetchOutcome = "";
 
 class ApiError extends Error {
-  constructor(status, message) {
+  constructor(status, message, body = null) {
     super(message);
     this.status = status;
+    this.body = body;
   }
 }
 
@@ -91,7 +108,7 @@ async function api(path, options) {
     // A non-JSON reply, for example a sign-in page, falls through to the generic message.
   }
   if (!response.ok) {
-    throw new ApiError(response.status, body?.error ?? "Something went wrong. Please try again.");
+    throw new ApiError(response.status, body?.error ?? "Something went wrong. Please try again.", body);
   }
   if (body === null) throw new ApiError(response.status, "The server sent an unexpected reply.");
   return body;
@@ -111,6 +128,7 @@ const currentView = () => {
 /** Shows the section that matches the current view and state, and hides the rest. */
 function applyVisibility() {
   const view = currentView();
+  els.fetch.hidden = view !== "practice";
   els.practice.hidden = !(view === "practice" && practiceState === "practice");
   els.result.hidden = !(view === "practice" && practiceState === "result");
   els.history.hidden = view !== "history";
@@ -179,6 +197,7 @@ async function route({ moveFocus = false } = {}) {
   applyVisibility();
 
   if (view === "practice") {
+    loadFetchStatus();
     if (practiceState === "none") await loadNext({ moveFocus });
     else if (moveFocus) (practiceState === "result" ? els.resultHeading : els.practiceHeading).focus();
   } else if (view === "history") {
@@ -212,7 +231,7 @@ async function loadNext({ moveFocus = false } = {}) {
     setStatus("");
     showProblem(
       error.status === 404
-        ? "There are no sentences at your level yet. Change your target level in Settings, or check back after the next daily update."
+        ? "There are no sentences at your level yet. Fetch new sentences, or change your target level in Settings."
         : error.message,
       loadNext,
     );
@@ -343,6 +362,86 @@ async function explainAttempt() {
   }
 }
 
+// ---- Fetching new sentences ----
+
+const sentences = (n) => `${n} new sentence${n === 1 ? "" : "s"}`;
+
+async function loadFetchStatus() {
+  try {
+    renderFetch(await api("/api/crawl"));
+  } catch (error) {
+    stopFetchPolling();
+    els.fetch.removeAttribute("aria-busy");
+    els.fetchButton.disabled = false;
+    els.fetchText.textContent = `Could not check for new sentences. ${error.message}`;
+  }
+}
+
+async function startFetch() {
+  fetchOutcome = "";
+  els.fetchButton.disabled = true;
+  try {
+    renderFetch(await api("/api/crawl", { method: "POST" }));
+  } catch (error) {
+    // A refusal still says where things stand, for example a fetch that is already going.
+    if (error.body?.today) renderFetch(error.body);
+    else els.fetchButton.disabled = false;
+    if (error.body?.reason !== "running") els.fetchText.textContent = error.message;
+  }
+}
+
+function renderFetch(status) {
+  const { run, today } = status;
+  const running = run?.status === "running";
+  if (fetchRunning && !running) {
+    fetchOutcome = outcomeText(run);
+    // The practice view was empty for want of sentences, so look again now there may be some.
+    if (practiceState === "none" && !els.problem.hidden) loadNext();
+  }
+  fetchRunning = running;
+
+  els.fetchButton.disabled = !status.canStart;
+  els.fetchButton.textContent = running ? "Fetching…" : "Fetch new sentences";
+  if (running) {
+    els.fetch.setAttribute("aria-busy", "true");
+    const step = FETCH_STEPS[run.step] ?? "Starting";
+    els.fetchText.textContent = `${step}… This takes a few minutes, and you can keep practising.`;
+    scheduleFetchPoll();
+    return;
+  }
+
+  els.fetch.removeAttribute("aria-busy");
+  stopFetchPolling();
+  els.fetchText.textContent =
+    fetchOutcome ||
+    (status.reason === "paused"
+      ? "New sentences are paused. Set a daily number above 0 in Settings."
+      : status.reason === "limit"
+        ? `Today's ${sentences(today.cap)} are in. More tomorrow.`
+        : `${today.added} of ${sentences(today.cap)} added today.`);
+}
+
+function outcomeText(run) {
+  if (!run || run.status === "failed") return "Fetching stopped before it finished. Please try again.";
+  if (!run.complete) return `Added ${sentences(run.chunksAdded)}, but a step did not finish. Fetch again to retry it.`;
+  return run.chunksAdded > 0
+    ? `Added ${sentences(run.chunksAdded)}.`
+    : "No new articles yet. Try again later.";
+}
+
+function scheduleFetchPoll() {
+  if (fetchTimer !== null || document.hidden) return;
+  fetchTimer = setTimeout(() => {
+    fetchTimer = null;
+    loadFetchStatus();
+  }, FETCH_POLL_MS);
+}
+
+function stopFetchPolling() {
+  clearTimeout(fetchTimer);
+  fetchTimer = null;
+}
+
 // ---- History ----
 
 async function loadHistory() {
@@ -456,6 +555,12 @@ els.next.addEventListener("click", () => loadNext({ moveFocus: true }));
 els.explainButton.addEventListener("click", explainAttempt);
 els.retry.addEventListener("click", () => retryAction({ moveFocus: true }));
 els.settingsForm.addEventListener("submit", saveSettings);
+els.fetchButton.addEventListener("click", startFetch);
+// Phones pause timers in the background, so check again as soon as the app is back in view.
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) stopFetchPolling();
+  else if (fetchRunning) loadFetchStatus();
+});
 window.addEventListener("hashchange", () => route({ moveFocus: true }));
 
 route();

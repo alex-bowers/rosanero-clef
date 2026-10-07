@@ -5,7 +5,7 @@
 A private, mobile-first web app, hosted entirely on Cloudflare, that helps one person (the owner) learn Italian through Palermo FC news.
 
 The loop:
-1. A scheduled Worker pulls recent articles from https://forzapalermo.it/ and splits them into small chunks (1-3 sentences).
+1. A background job, started from a button in the app, pulls recent articles from https://forzapalermo.it/ and splits them into small chunks (1-3 sentences).
 2. A **Clef** decision model rates each chunk on the CEFR scale (A1-C2) with a probability distribution.
 3. An **LLM** writes a reference English translation once, at ingest time, and it is stored.
 4. In the app, the user sees an Italian chunk plus its CEFR rating, types their own English translation, and gets scored.
@@ -15,7 +15,7 @@ The loop:
 
 ## 2. Decisions already made (don't relitigate)
 
-- Hosting: all Cloudflare (Workers, D1, Cron Triggers, Workers AI, static assets). Used on a phone, so mobile-first.
+- Hosting: all Cloudflare (Workers, D1, Workflows, Workers AI, static assets). Used on a phone, so mobile-first.
 - Decision model: **Clef-flash** (9B) by default, **Clef** (27B) configurable. Cloudflare's Clef is Jev-API compatible, so the decision client must sit behind an interface that could be pointed at Jev later.
 - Single user, private. Protect with Cloudflare Access (or a simple shared secret as a fallback). No public sign-up.
 - The Claude Code subscription CANNOT be used here (hosted app). The LLM is either a Workers AI open-weight model or the Anthropic API with an API key, behind an interface.
@@ -89,7 +89,7 @@ The owner changed 3 of the planner’s 40 draft labels (two reversed-meaning att
 - **Measured on a real run:** Clef (27B) scoring had a median of 479 ms and a 95th percentile of 900 ms over 4 calls, at about 375 input tokens and 0 output tokens per call. One Mistral explanation took 2.9 s (435 input, 106 output tokens). These are small samples, but they are the numbers to compare against Jev.
 - **Remote migrations 0002 and 0003 applied** on 5 October 2026.
 - **Deployed** on 5 October 2026 as a Worker with no public address, behind a Cloudflare Access application created beforehand. Unsigned requests were checked and redirected to the sign-in page. The remote database was seeded with 28 sentences.
-- **Still to do:** confirm the first 05:00 UTC ingest in the logs, set an account budget alert (see DEPLOY.md, step 4).
+- **Still to do:** confirm the first fetch started from the app finishes, set an account budget alert (see DEPLOY.md, step 4).
 
 ### Explanation prompt (4 October 2026, Mistral Small 3.1, four attempt types)
 
@@ -109,7 +109,7 @@ If something here is wrong or unavailable, stop and tell the owner rather than s
 ## 4. Architecture
 
 ```
-Cron Trigger -> Ingest Worker
+"Fetch new sentences" button -> POST /api/crawl -> Workflow (one step each)
    fetch feed -> fetch article HTML -> extract body -> split into chunks
    -> Clef: rate CEFR (batch)
    -> LLM: reference translation (batch)
@@ -125,7 +125,11 @@ Stack: TypeScript, Wrangler, one Worker serving both the API and static assets, 
 Layout:
 ```
 src/
-  index.ts            # fetch handler (static assets + API) and scheduled handler
+  index.ts            # Worker entry point: re-exports app.ts and the Workflow class
+  app.ts              # fetch handler (static assets + API)
+  crawl.ts            # /api/crawl: starts a fetch, reports its progress, applies the daily cap
+  daily.ts            # the fetch's steps: ingest, rating, translation, cleanup
+  workflow.ts         # the Cloudflare Workflow that runs those steps in the background
   api.ts              # routes, validation, rate limits, usage summary
   db.ts               # D1 queries (one D1Store implementing every store interface)
   jobs.ts             # runs the daily steps so one failure does not stop the rest
@@ -162,13 +166,13 @@ Dedupe articles by URL and content hash. Use migrations, not ad hoc schema chang
 
 ## 6. Pipeline details
 
-**Ingest (scheduled, 1/day):**
+**Ingest (on demand, from the Fetch new sentences button):**
 - Respect a daily cap (default 20 new chunks) to control cost.
 - Extract article body text only (no nav, ads, comments). Skip purely boilerplate pages.
 - Sentence-split with `Intl.Segmenter('it', { granularity: 'sentence' })`. Group into chunks of 1-3 sentences, roughly 15-60 words. Drop chunks that are mostly a quote with no context, lists of names, or boilerplate.
 - Heuristics stored alongside the model rating as a sanity check: word count, sentence count, mean sentence length and mean word length. A share of rare words was planned but not built.
 - Discovery reads the RSS feed first. On 3 October 2026 the feeds returned HTTP 500, so the listing pages are the fallback. Pages are fetched one at a time, 3 seconds apart (the site's `Crawl-delay`), with an identifiable User-Agent, and at most 15 articles are inspected per run. The daily cap is soft: it is checked between articles and an article is always stored whole.
-- Rating and translation are separate steps that run after ingest in the same daily job, one chunk per call (up to 100 pending chunks per run). A failed chunk is retried by the next run, and three failures in a row stop the step. Clef calls are not batched.
+- Rating and translation are separate steps that run after ingest in the same fetch, one chunk per call (up to 100 pending chunks per run). A failed chunk is retried by the next run, and three failures in a row stop the step. Clef calls are not batched.
 
 **CEFR rating (Clef, Choice question):**
 - Options: A1, A2, B1, B2, C1, C2. Write clear `instructions` describing the task: rate the reading difficulty of this Italian text for an English-speaking learner.
@@ -176,7 +180,7 @@ Dedupe articles by URL and content hash. Use migrations, not ad hoc schema chang
 - Football journalism skews hard. The UI must let the owner filter by a target level and see a chunk's rating before attempting it.
 
 **Reference translation (LLM):**
-- Written by the daily job's translation step after ingest, stored in `chunks.reference_en`, hidden from the UI until after the attempt. A chunk is only offered for practice once it has a translation.
+- Written by the fetch's translation step after ingest, stored in `chunks.reference_en`, hidden from the UI until after the attempt. A chunk is only offered for practice once it has a translation.
 - Prompt for a faithful, natural English translation. Keep output plain text only.
 
 **Scoring an attempt (Clef):**

@@ -466,6 +466,45 @@ input[aria-invalid="true"] {
   border-radius: var(--radius);
 }
 
+/* ---- Fetching new sentences ---- */
+
+.fetch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  margin-bottom: var(--section-gap);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--rule);
+}
+.fetch-text {
+  flex: 1 1 16rem;
+  margin: 0;
+  color: var(--ink-soft);
+}
+.fetch[aria-busy="true"] .fetch-text::before {
+  content: "";
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  margin-right: var(--space-2);
+  vertical-align: -0.1em;
+  border: 2px solid var(--pink-soft);
+  border-top-color: var(--pink-deep);
+  border-radius: 50%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .fetch[aria-busy="true"] .fetch-text::before {
+    animation: spin 0.9s linear infinite;
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ---- Practice ---- */
 
 .practice-layout {

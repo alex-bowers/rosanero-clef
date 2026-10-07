@@ -149,7 +149,6 @@ body {
   border-bottom-color: color-mix(in srgb, var(--pink) 45%, transparent);
 }
 .site-header nav a[aria-current="page"] {
-  color: var(--surface);
   border-bottom-color: var(--pink);
 }
 .site-header :focus-visible {

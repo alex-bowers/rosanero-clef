@@ -5,6 +5,7 @@ import { Resvg } from "@resvg/resvg-js";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
 const PAPER = "#fff6f9"; // the app's page background
+const PINK = "#f48fb1";
 const OUT = new URL("../public/icons/", import.meta.url);
 
 // The eagle's artwork, without the outer <svg> or the comment. Its viewBox is its bounding box.
@@ -41,9 +42,9 @@ function fullBleed(size, span) {
     eagle({ cx: size / 2, cy: size / 2, span: size * span }));
 }
 
-// The eagle across the middle of the screen, a little above centre.
+// The eagle across the middle of a pink screen, a little above centre.
 function splash(width, height) {
-  return svg(width, height, `<rect width="${width}" height="${height}" fill="${PAPER}"/>` +
+  return svg(width, height, `<rect width="${width}" height="${height}" fill="${PINK}"/>` +
     eagle({ cx: width / 2, cy: height * 0.45, span: width * 0.7 }));
 }
 

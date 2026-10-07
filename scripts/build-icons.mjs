@@ -4,26 +4,22 @@
 import { Resvg } from "@resvg/resvg-js";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
-const INK = "#1a1a1e";
-const PINK = "#f48fb1";
+const PAPER = "#fff6f9"; // the app's page background
 const OUT = new URL("../public/icons/", import.meta.url);
 
-// The eagle's artwork, without the outer <svg> or the comment. Its bounding box in the 512 grid.
+// The eagle's artwork, without the outer <svg> or the comment. Its viewBox is its bounding box.
 const source = readFileSync(new URL("../design/eagle.svg", import.meta.url), "utf8");
 const artwork = source.replace(/<!--[\s\S]*?-->/, "").replace(/<\/?svg[^>]*>/g, "").trim();
-const BOX = { x: 24, y: 40, width: 464, height: 390 };
+const [bx, by, bw, bh] = source.match(/viewBox="([^"]+)"/)[1].split(" ").map(Number);
 
-// The eagle in the given colours, scaled so its wider side spans `span` px and centred on cx, cy.
-function eagle({ body, eye, cx, cy, span }) {
-  const k = span / Math.max(BOX.width, BOX.height);
-  const ox = BOX.x + BOX.width / 2;
-  const oy = BOX.y + BOX.height / 2;
-  const art = artwork.replace(/fill="(#\w+)"/g, (_, fill) => `fill="${fill === INK ? body : eye}"`);
-  return `<g transform="translate(${cx} ${cy}) scale(${k}) translate(${-ox} ${-oy})">${art}</g>`;
+// The eagle scaled so it is `span` px wide, centred on cx, cy.
+function eagle({ cx, cy, span }) {
+  const k = span / bw;
+  return `<g transform="translate(${cx} ${cy}) scale(${k}) translate(${-(bx + bw / 2)} ${-(by + bh / 2)})">${artwork}</g>`;
 }
 
 function svg(width, height, body) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${body}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${body}</svg>`;
 }
 
 function png(name, markup) {
@@ -32,25 +28,23 @@ function png(name, markup) {
   writeFileSync(new URL(name, OUT), image.asPng());
 }
 
-// Black eagle on a pink rounded square. Used for the favicon and the "any" manifest icons.
+// The eagle on a rounded square. Used for the favicon and the "any" manifest icons.
 function rounded(size) {
-  const r = size * 0.22;
-  return svg(size, size, `<rect width="${size}" height="${size}" rx="${r}" fill="${PINK}"/>` +
-    eagle({ body: INK, eye: PINK, cx: size / 2, cy: size / 2, span: size * 0.74 }));
+  return svg(size, size, `<rect width="${size}" height="${size}" rx="${size * 0.22}" fill="${PAPER}"/>` +
+    eagle({ cx: size / 2, cy: size / 2, span: size * 0.86 }));
 }
 
-// Full-bleed pink square. The launcher crops it to its own shape, so the eagle stays inside the
-// central safe circle (80% of the width) that every mask keeps.
+// Full-bleed square. The phone crops it to its own shape, so `span` keeps the eagle inside the
+// central safe circle (80% of the width) for maskable icons.
 function fullBleed(size, span) {
-  return svg(size, size, `<rect width="${size}" height="${size}" fill="${PINK}"/>` +
-    eagle({ body: INK, eye: PINK, cx: size / 2, cy: size / 2, span: size * span }));
+  return svg(size, size, `<rect width="${size}" height="${size}" fill="${PAPER}"/>` +
+    eagle({ cx: size / 2, cy: size / 2, span: size * span }));
 }
 
-// Pink eagle on black, the same shade as the app header, a little above the middle.
+// The eagle across the middle of the screen, a little above centre.
 function splash(width, height) {
-  const span = Math.min(width * 0.56, height * 0.3);
-  return svg(width, height, `<rect width="${width}" height="${height}" fill="${INK}"/>` +
-    eagle({ body: PINK, eye: INK, cx: width / 2, cy: height * 0.44, span }));
+  return svg(width, height, `<rect width="${width}" height="${height}" fill="${PAPER}"/>` +
+    eagle({ cx: width / 2, cy: height * 0.45, span: width * 0.7 }));
 }
 
 // iPhone screens in CSS points and their pixel ratio. Safari only shows a startup image whose
@@ -81,9 +75,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   png("favicon-32.png", rounded(32));
   png("icon-192.png", rounded(192));
   png("icon-512.png", rounded(512));
-  png("maskable-192.png", fullBleed(192, 0.6));
-  png("maskable-512.png", fullBleed(512, 0.6));
-  png("apple-touch-icon.png", fullBleed(180, 0.72));
+  png("maskable-192.png", fullBleed(192, 0.72));
+  png("maskable-512.png", fullBleed(512, 0.72));
+  png("apple-touch-icon.png", fullBleed(180, 0.84));
   for (const [w, h, dpr] of SCREENS) png(splashName(w, h, dpr), splash(w * dpr, h * dpr));
 
   console.log(`Wrote icons and ${SCREENS.length} splash screens to public/icons`);

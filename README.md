@@ -64,6 +64,12 @@ Attempts and explanations are limited so that a bug or a stray script cannot run
 
 Invalid requests and stored explanations do not count. A request that fails at the AI service does count, because it may have cost something. New sentences per day are capped separately on the Settings page. Every Workers AI call is recorded (purpose, model, duration, tokens), and `/api/usage` summarises it.
 
+## Install on a phone
+
+The app can be added to a home screen. On iPhone, open it in Safari, tap Share, then Add to Home Screen. On Android, open it in Chrome and tap Install app in the menu. Sign in through Access once inside the installed app.
+
+The eagle in `design/eagle.svg` is the source for the favicon, the home screen icons and the iPhone splash screens. Each PNG in `public/icons` is rendered straight from it at its final size, so none is blurred by scaling. After changing the eagle, run `pnpm icons` and commit the results.
+
 ## Database migrations
 
 Migrations live in `migrations/`. `0002_settings_range.sql` adds the level range setting and `0003_usage.sql` adds the request and AI call logs. Both are applied to the local and remote databases (the remote one holds the schema and no data). Apply future migrations with `pnpm db:migrate:local` and `pnpm db:migrate:remote`.

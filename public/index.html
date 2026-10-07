@@ -14,12 +14,14 @@
     <a class="skip-link" href="#main">Skip to the exercise</a>
 
     <header class="site-header">
-      <h1>Palermo Italian Reader</h1>
-      <nav aria-label="Main">
-        <a href="#practice">Practice</a>
-        <a href="#history">History</a>
-        <a href="#settings">Settings</a>
-      </nav>
+      <div class="site-header-inner">
+        <h1>Palermo Italian Reader</h1>
+        <nav aria-label="Main">
+          <a href="#practice">Practice</a>
+          <a href="#history">History</a>
+          <a href="#settings">Settings</a>
+        </nav>
+      </div>
     </header>
 
     <main id="main">
@@ -33,72 +35,84 @@
       <section id="practice" aria-labelledby="practice-heading" hidden>
         <h2 id="practice-heading" tabindex="-1">Translate this sentence</h2>
 
-        <p id="italian" class="italian" lang="it"></p>
+        <div class="practice-layout">
+          <div class="passage">
+            <p id="italian" class="italian" lang="it"></p>
 
-        <p class="source">
-          From
-          <a id="source-link" rel="noopener noreferrer" target="_blank"></a>
-          <span class="visually-hidden">(opens in a new tab)</span>
-        </p>
+            <p class="source">
+              From
+              <a id="source-link" rel="noopener noreferrer" target="_blank"></a>
+              <span class="visually-hidden">(opens in a new tab)</span>
+            </p>
 
-        <details class="difficulty">
-          <summary id="difficulty-summary"></summary>
-          <ul id="difficulty-bars" class="bars"></ul>
-          <p class="hint">
-            An AI model rates difficulty and tends to read low. Treat it as a guide.
-          </p>
-        </details>
-
-        <form id="attempt-form" novalidate>
-          <label for="attempt">Your English translation</label>
-          <p id="attempt-hint" class="hint">In your own words. Up to 1,000 characters.</p>
-          <p id="attempt-error" class="field-error" hidden></p>
-          <textarea
-            id="attempt"
-            name="attempt"
-            lang="en"
-            rows="4"
-            maxlength="1000"
-            required
-            autocapitalize="sentences"
-            aria-describedby="attempt-hint attempt-error"
-          ></textarea>
-          <div class="actions">
-            <button id="submit" type="submit" class="button primary">Check my translation</button>
-            <button id="skip" type="button" class="button secondary">Skip this one</button>
+            <details class="difficulty">
+              <summary id="difficulty-summary"></summary>
+              <ul id="difficulty-bars" class="bars"></ul>
+              <p class="hint">
+                An AI model rates difficulty and tends to read low. Treat it as a guide.
+              </p>
+            </details>
           </div>
-        </form>
+
+          <form id="attempt-form" class="attempt" novalidate>
+            <label for="attempt">Your English translation</label>
+            <p id="attempt-hint" class="hint">In your own words. Up to 1,000 characters.</p>
+            <p id="attempt-error" class="field-error" hidden></p>
+            <textarea
+              id="attempt"
+              name="attempt"
+              lang="en"
+              rows="4"
+              maxlength="1000"
+              required
+              autocapitalize="sentences"
+              aria-describedby="attempt-hint attempt-error"
+            ></textarea>
+            <div class="actions">
+              <button id="submit" type="submit" class="button primary">Check my translation</button>
+              <button id="skip" type="button" class="button secondary">Skip this one</button>
+            </div>
+          </form>
+        </div>
       </section>
 
       <section id="result" aria-labelledby="result-heading" hidden>
-        <h2 id="result-heading" tabindex="-1"></h2>
-        <p id="confidence"></p>
-
-        <h3>English fluency</h3>
-        <p id="fluency-text"></p>
-        <div class="bar" aria-hidden="true"><span id="fluency-fill"></span></div>
-
-        <h3>How sure the scorer is about each verdict</h3>
-        <ul id="verdict-bars" class="bars"></ul>
-
-        <h3>Your translation</h3>
-        <p id="your-attempt" class="english" lang="en"></p>
-
-        <h3>One acceptable translation</h3>
-        <p id="reference" class="english" lang="en"></p>
-        <p class="hint">The reference is one good answer, not the only one. It can contain mistakes too.</p>
-
-        <div id="explain" hidden>
-          <p class="note">This one may be worth a closer look.</p>
-          <button id="explain-button" type="button" class="button secondary">Explain this</button>
-          <p id="explain-error" class="field-error" role="alert" hidden></p>
+        <div class="result-head">
+          <h2 id="result-heading" tabindex="-1"></h2>
+          <p id="confidence"></p>
         </div>
 
-        <section id="explanation" aria-labelledby="explanation-heading" hidden>
-          <h3 id="explanation-heading" tabindex="-1">Explanation</h3>
-          <p id="explanation-text" class="explanation" lang="en"></p>
-          <p class="hint">Written by an AI model, which can make mistakes.</p>
-        </section>
+        <div class="result-layout">
+          <div class="result-main">
+            <h3>Your translation</h3>
+            <p id="your-attempt" class="english" lang="en"></p>
+
+            <h3>One acceptable translation</h3>
+            <p id="reference" class="english" lang="en"></p>
+            <p class="hint">The reference is one good answer, not the only one. It can contain mistakes too.</p>
+
+            <div id="explain" hidden>
+              <p class="note">This one may be worth a closer look.</p>
+              <button id="explain-button" type="button" class="button secondary">Explain this</button>
+              <p id="explain-error" class="field-error" role="alert" hidden></p>
+            </div>
+
+            <section id="explanation" aria-labelledby="explanation-heading" hidden>
+              <h3 id="explanation-heading" tabindex="-1">Explanation</h3>
+              <p id="explanation-text" class="explanation" lang="en"></p>
+              <p class="hint">Written by an AI model, which can make mistakes.</p>
+            </section>
+          </div>
+
+          <div class="result-scores">
+            <h3>English fluency</h3>
+            <p id="fluency-text"></p>
+            <div class="bar" aria-hidden="true"><span id="fluency-fill"></span></div>
+
+            <h3>How sure the scorer is about each verdict</h3>
+            <ul id="verdict-bars" class="bars"></ul>
+          </div>
+        </div>
 
         <button id="next" type="button" class="button primary">Next sentence</button>
       </section>

@@ -466,6 +466,44 @@ input[aria-invalid="true"] {
   border-radius: var(--radius);
 }
 
+/* ---- Fetching new sentences ---- */
+
+/* Sits on the Settings page, below the form. */
+.fetch {
+  max-width: 30rem;
+  margin-top: var(--section-gap);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--rule);
+}
+.fetch h3 {
+  margin-top: 0;
+}
+.fetch-text {
+  margin: 0 0 var(--space-4);
+  color: var(--ink-soft);
+}
+.fetch[aria-busy="true"] .fetch-text::before {
+  content: "";
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  margin-right: var(--space-2);
+  vertical-align: -0.1em;
+  border: 2px solid var(--pink-soft);
+  border-top-color: var(--pink-deep);
+  border-radius: 50%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .fetch[aria-busy="true"] .fetch-text::before {
+    animation: spin 0.9s linear infinite;
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ---- Practice ---- */
 
 .practice-layout {

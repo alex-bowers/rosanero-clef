@@ -7,15 +7,18 @@ import type {
   PracticeStore,
   Settings,
 } from "./api.ts";
+import type { CrawlRun, CrawlStore } from "./crawl.ts";
+import { STALE_AFTER_MINUTES } from "./crawl.ts";
 import type { Chunk } from "./ingest/chunk.ts";
 import type { IngestStore, StoredArticle } from "./ingest/run.ts";
+import type { StepResult } from "./jobs.ts";
 import type { CallRecord } from "./metering.ts";
 import type { RatingStore, UnratedChunk } from "./rate.ts";
 import type { RatingSummary } from "./rating.ts";
 import type { TranslationStore, UntranslatedChunk } from "./translate.ts";
 import type { D1Like, Distribution } from "./types.ts";
 
-export class D1Store implements IngestStore, RatingStore, TranslationStore, PracticeStore {
+export class D1Store implements IngestStore, RatingStore, TranslationStore, PracticeStore, CrawlStore {
   private readonly db: D1Like;
 
   constructor(db: D1Like) {
@@ -276,4 +279,88 @@ export class D1Store implements IngestStore, RatingStore, TranslationStore, Prac
     ];
     await this.db.batch(statements);
   }
+
+  async pendingChunks(): Promise<number> {
+    const row = await this.db
+      .prepare("SELECT COUNT(*) AS n FROM chunks WHERE cefr_probs_json IS NULL OR reference_en IS NULL")
+      .first<{ n: number }>();
+    return row?.n ?? 0;
+  }
+
+  async latestCrawlRun(): Promise<CrawlRun | null> {
+    await this.failStaleCrawlRuns();
+    const row = await this.db
+      .prepare(
+        `SELECT id, status, step, instance_id AS instanceId, results_json AS results,
+                started_at AS startedAt, finished_at AS finishedAt
+         FROM crawl_runs ORDER BY id DESC LIMIT 1`,
+      )
+      .first<Omit<CrawlRun, "results"> & { results: string | null }>();
+    if (!row) return null;
+    return {
+      ...row,
+      results: parseResults(row.results),
+      startedAt: utc(row.startedAt),
+      finishedAt: row.finishedAt === null ? null : utc(row.finishedAt),
+    };
+  }
+
+  /** One statement, so two presses at once cannot both start a run. */
+  async beginCrawlRun(): Promise<number | null> {
+    await this.failStaleCrawlRuns();
+    const row = await this.db
+      .prepare(
+        `INSERT INTO crawl_runs (status)
+         SELECT 'running' WHERE NOT EXISTS (SELECT 1 FROM crawl_runs WHERE status = 'running')
+         RETURNING id`,
+      )
+      .first<{ id: number }>();
+    return row?.id ?? null;
+  }
+
+  async setCrawlInstance(runId: number, instanceId: string): Promise<void> {
+    await this.db.prepare("UPDATE crawl_runs SET instance_id = ? WHERE id = ?").bind(instanceId, runId).run();
+  }
+
+  async markCrawlStep(runId: number, step: string): Promise<void> {
+    await this.db
+      .prepare("UPDATE crawl_runs SET step = ? WHERE id = ? AND status = 'running'")
+      .bind(step, runId)
+      .run();
+  }
+
+  async finishCrawlRun(runId: number, status: "done" | "failed", results: StepResult[] | null): Promise<void> {
+    await this.db
+      .prepare(
+        "UPDATE crawl_runs SET status = ?, step = NULL, results_json = ?, finished_at = datetime('now') WHERE id = ?",
+      )
+      .bind(status, results === null ? null : JSON.stringify(results), runId)
+      .run();
+  }
+
+  private async failStaleCrawlRuns(): Promise<void> {
+    await this.db
+      .prepare(
+        `UPDATE crawl_runs SET status = 'failed', step = NULL, finished_at = datetime('now')
+         WHERE status = 'running' AND started_at < datetime('now', ?)`,
+      )
+      .bind(`-${STALE_AFTER_MINUTES} minutes`)
+      .run();
+  }
+}
+
+/** A damaged row should not stop the app from showing the button, so it reads as no results. */
+function parseResults(text: string | null): StepResult[] | null {
+  if (text === null) return null;
+  try {
+    const results: unknown = JSON.parse(text);
+    return Array.isArray(results) ? (results as StepResult[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** SQLite stores "YYYY-MM-DD HH:MM:SS" in UTC. */
+function utc(value: string): string {
+  return `${value.replace(" ", "T")}Z`;
 }

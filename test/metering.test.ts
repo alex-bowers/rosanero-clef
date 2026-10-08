@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ClefClient } from "../src/decision/clef.ts";
-import { limitsFrom } from "../src/index.ts";
-import worker from "../src/index.ts";
+import { limitsFrom } from "../src/app.ts";
+import worker from "../src/app.ts";
 import { runSteps } from "../src/jobs.ts";
 import { WorkersAiLlmClient } from "../src/llm/workersai.ts";
 import { metered, readUsage } from "../src/metering.ts";

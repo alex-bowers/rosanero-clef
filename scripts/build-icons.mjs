@@ -4,7 +4,6 @@
 import { Resvg } from "@resvg/resvg-js";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 
-const PAPER = "#fff6f9"; // the app's page background
 const PINK = "#f48fb1";
 const OUT = new URL("../public/icons/", import.meta.url);
 
@@ -31,14 +30,14 @@ function png(name, markup) {
 
 // The eagle on a rounded square. Used for the favicon and the "any" manifest icons.
 function rounded(size) {
-  return svg(size, size, `<rect width="${size}" height="${size}" rx="${size * 0.22}" fill="${PAPER}"/>` +
+  return svg(size, size, `<rect width="${size}" height="${size}" rx="${size * 0.22}" fill="${PINK}"/>` +
     eagle({ cx: size / 2, cy: size / 2, span: size * 0.86 }));
 }
 
 // Full-bleed square. The phone crops it to its own shape, so `span` keeps the eagle inside the
 // central safe circle (80% of the width) for maskable icons.
 function fullBleed(size, span) {
-  return svg(size, size, `<rect width="${size}" height="${size}" fill="${PAPER}"/>` +
+  return svg(size, size, `<rect width="${size}" height="${size}" fill="${PINK}"/>` +
     eagle({ cx: size / 2, cy: size / 2, span: size * span }));
 }
 

@@ -26,7 +26,7 @@ pnpm run deploy
 
 Use `pnpm run deploy`: plain `pnpm deploy` is a different built-in pnpm command.
 
-Nothing runs on a schedule. Pressing **Fetch new sentences** on the Practice page starts a Cloudflare Workflow (`rosanero-crawl`, created by the deploy) that fetches about the daily sentence cap (20 by default; the cap is checked between articles, so the last article can take it over) from the news site, then rates and translates the sentences. Only one fetch runs at a time.
+Nothing runs on a schedule. Pressing **Fetch new sentences** on the Settings page starts a Cloudflare Workflow (`rosanero-crawl`, created by the deploy) that fetches about the daily sentence cap (20 by default; the cap is checked between articles, so the last article can take it over) from the news site, then rates and translates the sentences. Only one fetch runs at a time.
 
 Your `wrangler.local.jsonc` needs the same `triggers` (an empty `crons` list, which removes the old 05:00 UTC cron) and `workflows` entries as `wrangler.jsonc`. Leaving `triggers` out entirely would keep the old cron.
 

@@ -52,11 +52,6 @@
     <main id="main">
       <p id="status" class="status" role="status"></p>
 
-      <div id="fetch" class="fetch" hidden>
-        <p id="fetch-text" class="fetch-text" role="status"></p>
-        <button id="fetch-button" type="button" class="button secondary">Fetch new sentences</button>
-      </div>
-
       <div id="problem" class="problem" role="alert" hidden>
         <p id="problem-text"></p>
         <button id="retry" type="button" class="button secondary">Try again</button>
@@ -201,6 +196,12 @@
           <button type="submit" class="button primary">Save settings</button>
           <p id="settings-status" class="status" role="status"></p>
         </form>
+
+        <section id="fetch" class="fetch" aria-labelledby="fetch-heading">
+          <h3 id="fetch-heading">New sentences</h3>
+          <p id="fetch-text" class="fetch-text" role="status"></p>
+          <button id="fetch-button" type="button" class="button secondary">Fetch new sentences</button>
+        </section>
       </section>
     </main>
   </body>

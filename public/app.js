@@ -128,7 +128,6 @@ const currentView = () => {
 /** Shows the section that matches the current view and state, and hides the rest. */
 function applyVisibility() {
   const view = currentView();
-  els.fetch.hidden = view !== "practice";
   els.practice.hidden = !(view === "practice" && practiceState === "practice");
   els.result.hidden = !(view === "practice" && practiceState === "result");
   els.history.hidden = view !== "history";
@@ -197,13 +196,13 @@ async function route({ moveFocus = false } = {}) {
   applyVisibility();
 
   if (view === "practice") {
-    loadFetchStatus();
     if (practiceState === "none") await loadNext({ moveFocus });
     else if (moveFocus) (practiceState === "result" ? els.resultHeading : els.practiceHeading).focus();
   } else if (view === "history") {
     await loadHistory();
     if (moveFocus) els.historyHeading.focus();
   } else {
+    loadFetchStatus();
     await loadSettings();
     if (moveFocus) els.settingsHeading.focus();
   }
@@ -231,7 +230,7 @@ async function loadNext({ moveFocus = false } = {}) {
     setStatus("");
     showProblem(
       error.status === 404
-        ? "There are no sentences at your level yet. Fetch new sentences, or change your target level in Settings."
+        ? "There are no sentences at your level yet. Fetch new sentences or change your target level in Settings."
         : error.message,
       loadNext,
     );
